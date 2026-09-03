@@ -37,12 +37,12 @@
   </div>
 
   <script>
-    // 1. Supabase Sozlamalari (Admin panelingizdagi kalitlarni qo'ying)
-    const SUPABASE_URL = 'BU_YERGA_PROJECT_URL_QOYING';
-    const SUPABASE_KEY = 'BU_YERGA_ANON_KEY_QOYING';
+    // 1. Supabase loyihangizning tayyor rekvizitlari
+    const SUPABASE_URL = 'https://wrrsvrgdinfmnuwewtoa.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndycnN2cmdkaW5mbW51d2V3dG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NzM0ODIsImV4cCI6MjEwMjU0OTQ4Mn0.YRHratsKVG42IY6YKokDycRy23oU8N3b7jO-o3tpQF4';
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // 2. URL-dan stol raqamini aniqlash (?table=1)
+    // 2. URL orqali stol raqamini olish (?table=1)
     const urlParams = new URLSearchParams(window.location.search);
     const tableNumber = urlParams.get('table') || '1';
     document.getElementById('table-display').innerText = `${tableNumber}-sonli stol`;
@@ -50,19 +50,21 @@
     let cart = {};
     let menuData = [];
 
-    // 3. Admin panel kiritgan taomlarni yuklab olish (Stop-listdagi taomlar chiqmaydi)
+    // 3. Admin panel kiritgan taomlarni 'dishes' jadvalidan yuklash
     async function fetchMenu() {
       const { data, error } = await supabase
         .from('dishes')
-        .select('*')
-        .or('is_stop.is.null,is_stop.eq.false');
+        .select('*');
 
       if (error) {
         console.error('Menyuni yuklashda xatolik:', error);
+        document.getElementById('menu-container').innerHTML = 
+          `<p class="text-red-500 font-bold">Xatolik yuz berdi: ${error.message}</p>`;
         return;
       }
 
-      menuData = data;
+      // Admin panelda Stop-listga kiritilmagan (is_stop != true) taomlarni saralash
+      menuData = (data || []).filter(item => !item.is_stop);
       renderMenu();
     }
 
@@ -78,7 +80,7 @@
           <img src="${item.image_url || 'https://via.placeholder.com/100'}" class="w-20 h-20 object-cover rounded-lg">
           <div class="flex-1">
             <h3 class="font-bold text-lg">${item.name}</h3>
-            <p class="text-amber-600 font-bold mt-1">${Number(item.price).toLocaleString()} SUM</p>
+            <p class="text-amber-600 font-bold mt-1">${Number(item.price || 0).toLocaleString()} SUM</p>
           </div>
           <div class="flex items-center gap-2">
             <button onclick="changeQuantity(${item.id}, -1)" class="w-8 h-8 bg-gray-200 rounded-full font-bold text-lg">-</button>
@@ -89,7 +91,7 @@
       `).join('');
     }
 
-    // Savatni boshqarish
+    // Savat miqdorini o'zgartirish
     function changeQuantity(id, delta) {
       if (!cart[id]) cart[id] = 0;
       cart[id] += delta;
@@ -99,6 +101,7 @@
       updateCartSummary();
     }
 
+    // Savat va jami summani hisoblash
     function updateCartSummary() {
       let total = 0;
       let count = 0;
@@ -106,7 +109,7 @@
       for (let id in cart) {
         const item = menuData.find(m => m.id == id);
         if (item) {
-          total += item.price * cart[id];
+          total += (item.price || 0) * cart[id];
           count += cart[id];
         }
       }
@@ -115,7 +118,7 @@
       document.getElementById('cart-count').innerText = `Savat: ${count}`;
     }
 
-    // 4. Buyurtmani Admin panel oshxonasiga yuborish
+    // 4. Buyurtmani Admin panelning 'orders' jadvaliga yuborish
     async function submitOrder() {
       const itemIds = Object.keys(cart);
       if (itemIds.length === 0) {
@@ -158,6 +161,7 @@
       }
     }
 
+    // Sahifa yuklanganda menyuni chaqirish
     fetchMenu();
   </script>
 </body>
