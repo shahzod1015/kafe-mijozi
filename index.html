@@ -37,7 +37,7 @@
   </div>
 
   <script>
-    // 1. Supabase loyihangizning tayyor rekvizitlari
+    // 1. Supabase loyihangiz rekvizitlari
     const SUPABASE_URL = 'https://wrrsvrgdinfmnuwewtoa.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndycnN2cmdkaW5mbW51d2V3dG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NzM0ODIsImV4cCI6MjEwMjU0OTQ4Mn0.YRHratsKVG42IY6YKokDycRy23oU8N3b7jO-o3tpQF4';
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -50,21 +50,21 @@
     let cart = {};
     let menuData = [];
 
-    // 3. Admin panel kiritgan taomlarni 'dishes' jadvalidan yuklash
+    // 3. Admin panel kiritgan taomlarni 'menu' jadvalidan yuklash
     async function fetchMenu() {
       const { data, error } = await supabase
-        .from('dishes')
+        .from('menu')
         .select('*');
 
       if (error) {
         console.error('Menyuni yuklashda xatolik:', error);
         document.getElementById('menu-container').innerHTML = 
-          `<p class="text-red-500 font-bold">Xatolik yuz berdi: ${error.message}</p>`;
+          `<p class="text-red-500 font-bold">Xatolik: ${error.message}</p>`;
         return;
       }
 
-      // Admin panelda Stop-listga kiritilmagan (is_stop != true) taomlarni saralash
-      menuData = (data || []).filter(item => !item.is_stop);
+      // Stop-list cheklovlarini tekshirish (is_stop hamda is_available ustunlari bo'yicha)
+      menuData = (data || []).filter(item => !item.is_stop && item.is_available !== false);
       renderMenu();
     }
 
@@ -79,7 +79,7 @@
         <div class="bg-white p-3 rounded-xl shadow-sm flex gap-4 items-center">
           <img src="${item.image_url || 'https://via.placeholder.com/100'}" class="w-20 h-20 object-cover rounded-lg">
           <div class="flex-1">
-            <h3 class="font-bold text-lg">${item.name}</h3>
+            <h3 class="font-bold text-lg">${item.title || item.name}</h3>
             <p class="text-amber-600 font-bold mt-1">${Number(item.price || 0).toLocaleString()} SUM</p>
           </div>
           <div class="flex items-center gap-2">
@@ -101,7 +101,7 @@
       updateCartSummary();
     }
 
-    // Savat va jami summani hisoblash
+    // Savat summasini hisoblash
     function updateCartSummary() {
       let total = 0;
       let count = 0;
@@ -130,7 +130,7 @@
         const item = menuData.find(m => m.id == id);
         return {
           id: item.id,
-          name: item.name,
+          name: item.title || item.name,
           price: item.price,
           qty: cart[id]
         };
@@ -161,7 +161,6 @@
       }
     }
 
-    // Sahifa yuklanganda menyuni chaqirish
     fetchMenu();
   </script>
 </body>
