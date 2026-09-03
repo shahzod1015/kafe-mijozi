@@ -6,11 +6,16 @@
   <title>Kafe Menyu</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* Kategoriyalar gorizontal skroll bo'lganda scrollbarni berkitish */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
 </head>
-<body class="bg-gray-100 text-gray-800 pb-24">
+<body class="bg-gray-100 text-gray-800 pb-28">
 
   <!-- Header -->
-  <header class="bg-amber-600 text-white p-4 sticky top-0 shadow-md flex justify-between items-center z-10">
+  <header class="bg-amber-600 text-white p-4 sticky top-0 shadow-md flex justify-between items-center z-20">
     <div>
       <h1 class="text-xl font-bold">Kafe Menyusi</h1>
       <p id="table-display" class="text-xs text-amber-100">Stol aniqlanmadi</p>
@@ -20,24 +25,33 @@
     </div>
   </header>
 
+  <!-- Categoriyalar bo'limi (Tablar) -->
+  <div class="bg-white sticky top-[60px] z-10 shadow-sm border-b p-2">
+    <div id="categories-container" class="flex gap-2 overflow-x-auto no-scrollbar py-1">
+      <button onclick="filterCategory('all')" id="cat-btn-all" class="cat-btn bg-amber-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap shadow-sm">
+        Barchasi
+      </button>
+    </div>
+  </div>
+
   <!-- Menyu Ro'yxati -->
   <main id="menu-container" class="p-4 grid gap-4 grid-cols-1 sm:grid-cols-2">
-    <p class="text-gray-500">Menyu yuklanmoqda...</p>
+    <p class="text-gray-500 text-center col-span-full">Menyu yuklanmoqda...</p>
   </main>
 
   <!-- Buyurtma berish tugmasi -->
-  <div class="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-lg border-t flex justify-between items-center z-10">
+  <div class="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-lg border-t flex justify-between items-center z-20">
     <div>
       <span class="text-xs text-gray-500">Jami:</span>
       <p id="total-price" class="text-lg font-bold text-amber-600">0 SUM</p>
     </div>
-    <button onclick="submitOrder()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-6 rounded-lg shadow">
+    <button onclick="submitOrder()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-6 rounded-lg shadow active:scale-95 transition-transform">
       Buyurtma berish
     </button>
   </div>
 
   <script>
-    // 1. Supabase loyihangiz rekvizitlari
+    // 1. Supabase loyihasi rekvizitlari
     const SUPABASE_URL = 'https://wrrsvrgdinfmnuwewtoa.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndycnN2cmdkaW5mbW51d2V3dG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NzM0ODIsImV4cCI6MjEwMjU0OTQ4Mn0.YRHratsKVG42IY6YKokDycRy23oU8N3b7jO-o3tpQF4';
     const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -49,6 +63,7 @@
 
     let cart = {};
     let menuData = [];
+    let selectedCategory = 'all';
 
     // 3. Admin panel kiritgan taomlarni 'menu' jadvalidan yuklash
     async function fetchMenu() {
@@ -59,36 +74,83 @@
       if (error) {
         console.error('Menyuni yuklashda xatolik:', error);
         document.getElementById('menu-container').innerHTML = 
-          `<p class="text-red-500 font-bold">Xatolik: ${error.message}</p>`;
+          `<p class="text-red-500 font-bold text-center col-span-full">Xatolik: ${error.message}</p>`;
         return;
       }
 
-      // Stop-list cheklovlarini tekshirish (is_stop hamda is_available ustunlari bo'yicha)
+      // Stop-list cheklovlarini tekshirish (is_stop va is_available bo'yicha)
       menuData = (data || []).filter(item => !item.is_stop && item.is_available !== false);
+      renderCategories();
       renderMenu();
     }
 
+    // Kategoriyalarni avtomatik ajratib olish va tugmalarni yaratish
+    function renderCategories() {
+      const catContainer = document.getElementById('categories-container');
+      
+      // Baza ichidagi barcha takrorlanmas kategoriyalarni olamiz
+      const categories = [...new Set(menuData.map(item => item.category).filter(Boolean))];
+      
+      let html = `
+        <button onclick="filterCategory('all')" id="cat-btn-all" 
+          class="cat-btn ${selectedCategory === 'all' ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'} px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-colors">
+          Barchasi
+        </button>
+      `;
+
+      categories.forEach(cat => {
+        const isActive = selectedCategory === cat;
+        html += `
+          <button onclick="filterCategory('${cat}')" id="cat-btn-${cat}" 
+            class="cat-btn ${isActive ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'} px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-colors">
+            ${cat}
+          </button>
+        `;
+      });
+
+      catContainer.innerHTML = html;
+    }
+
+    // Kategoriyani tanlash
+    function filterCategory(category) {
+      selectedCategory = category;
+      renderCategories();
+      renderMenu();
+    }
+
+    // Menyuni ekranga chiqarish
     function renderMenu() {
       const container = document.getElementById('menu-container');
-      if (!menuData || menuData.length === 0) {
-        container.innerHTML = '<p class="text-gray-500">Hozircha menyuda sotuvda bor taomlar yo\'q.</p>';
+      
+      // Tanlangan kategoriyaga ko'ra saralash
+      const filteredMenu = selectedCategory === 'all' 
+        ? menuData 
+        : menuData.filter(item => item.category === selectedCategory);
+
+      if (!filteredMenu || filteredMenu.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center col-span-full py-8">Hozircha sotuvda bor taomlar yo\'q.</p>';
         return;
       }
 
-      container.innerHTML = menuData.map(item => `
-        <div class="bg-white p-3 rounded-xl shadow-sm flex gap-4 items-center">
-          <img src="${item.image_url || 'https://via.placeholder.com/100'}" class="w-20 h-20 object-cover rounded-lg">
-          <div class="flex-1">
-            <h3 class="font-bold text-lg">${item.title || item.name}</h3>
-            <p class="text-amber-600 font-bold mt-1">${Number(item.price || 0).toLocaleString()} SUM</p>
+      container.innerHTML = filteredMenu.map(item => {
+        const currentQty = cart[item.id] || 0;
+        return `
+          <div class="bg-white p-3 rounded-xl shadow-sm flex gap-4 items-center">
+            <img src="${item.image_url || 'https://via.placeholder.com/100'}" class="w-20 h-20 object-cover rounded-lg bg-gray-100">
+            <div class="flex-1">
+              <h3 class="font-bold text-base text-gray-800">${item.title || item.name}</h3>
+              <p class="text-amber-600 font-bold mt-1">${Number(item.price || 0).toLocaleString()} SUM</p>
+            </div>
+            <div class="flex items-center gap-2">
+              ${currentQty > 0 ? `
+                <button onclick="changeQuantity(${item.id}, -1)" class="w-8 h-8 bg-gray-200 active:bg-gray-300 rounded-full font-bold text-lg flex items-center justify-center">-</button>
+                <span id="qty-${item.id}" class="font-bold min-w-[16px] text-center">${currentQty}</span>
+              ` : ''}
+              <button onclick="changeQuantity(${item.id}, 1)" class="w-8 h-8 bg-amber-600 active:bg-amber-700 text-white rounded-full font-bold text-lg flex items-center justify-center">+</button>
+            </div>
           </div>
-          <div class="flex items-center gap-2">
-            <button onclick="changeQuantity(${item.id}, -1)" class="w-8 h-8 bg-gray-200 rounded-full font-bold text-lg">-</button>
-            <span id="qty-${item.id}" class="font-bold">0</span>
-            <button onclick="changeQuantity(${item.id}, 1)" class="w-8 h-8 bg-amber-600 text-white rounded-full font-bold text-lg">+</button>
-          </div>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     // Savat miqdorini o'zgartirish
@@ -97,7 +159,7 @@
       cart[id] += delta;
       if (cart[id] <= 0) delete cart[id];
 
-      document.getElementById(`qty-${id}`).innerText = cart[id] || 0;
+      renderMenu();
       updateCartSummary();
     }
 
@@ -118,7 +180,17 @@
       document.getElementById('cart-count').innerText = `Savat: ${count}`;
     }
 
-    // 4. Buyurtmani Admin panelning 'orders' jadvaliga yuborish
+    // 4. Realtime Obuna (Admin stop-listga solsa yoki yangi taom qo'shsa darhol yangilanadi)
+    function subscribeToMenuRealtime() {
+      supabase
+        .channel('public:menu')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'menu' }, () => {
+          fetchMenu();
+        })
+        .subscribe();
+    }
+
+    // 5. Buyurtmani Admin panelning 'orders' jadvaliga yuborish
     async function submitOrder() {
       const itemIds = Object.keys(cart);
       if (itemIds.length === 0) {
@@ -161,7 +233,9 @@
       }
     }
 
+    // Boshlang'ich funksiyalarni chaqirish
     fetchMenu();
+    subscribeToMenuRealtime();
   </script>
 </body>
 </html>
