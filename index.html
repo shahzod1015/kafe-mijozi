@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kafe Menyu</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Supabase JS CDN (versiyasi barqaror) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8/dist/umd/supabase.min.js"></script>
   <style>
     .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -25,7 +24,7 @@
     </div>
   </header>
 
-  <!-- Categoriyalar bo'limi -->
+  <!-- Bo'limlar (Kategoriyalar) -->
   <div class="bg-white sticky top-[60px] z-10 shadow-sm border-b p-2">
     <div id="categories-container" class="flex gap-2 overflow-x-auto no-scrollbar py-1">
       <button onclick="filterCategory('all')" id="cat-btn-all" class="bg-amber-600 text-white px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap">
@@ -35,8 +34,8 @@
   </div>
 
   <!-- Menyu Ro'yxati -->
-  <main id="menu-container" class="p-4 grid gap-4 grid-cols-1 sm:grid-cols-2">
-    <p class="text-gray-500 text-center col-span-full">Menyu yuklanmoqda...</p>
+  <main id="menu-container" class="p-4 space-y-6">
+    <p class="text-gray-500 text-center">Menyu yuklanmoqda...</p>
   </main>
 
   <!-- Buyurtma berish tugmasi -->
@@ -54,7 +53,6 @@
     const SUPABASE_URL = 'https://wrrsvrgdinfmnuwewtoa.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndycnN2cmdkaW5mbW51d2V3dG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NzM0ODIsImV4cCI6MjEwMjU0OTQ4Mn0.YRHratsKVG42IY6YKokDycRy23oU8N3b7jO-o3tpQF4';
     
-    // Supabase obyektini xavfsiz shakllantirish
     const _supabase = window.supabase || window.supabaseClient;
     const client = _supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -66,6 +64,24 @@
     let menuData = [];
     let selectedCategory = 'all';
 
+    // Aniq belgilangan 4 ta bo'lim bo'yicha ajratish funksiyasi
+    function getItemCategory(item) {
+      const name = (item.title || item.name || '').toLowerCase();
+      const rawCat = (item.category || item.category_name || '').toLowerCase();
+
+      if (name.includes('hotdog') || name.includes('hot-dog') || rawCat.includes('hotdog')) {
+        return 'HOTDOGLAR';
+      }
+      if (name.includes('lavash') || rawCat.includes('lavash')) {
+        return 'LAVASHLAR';
+      }
+      if (name.includes('fanta') || name.includes('cola') || name.includes('pepsi') || name.includes('ichimlik') || name.includes('sok') || rawCat.includes('ichimlik')) {
+        return 'ICHIMLIKLAR';
+      }
+      
+      return 'BOSHQALAR';
+    }
+
     async function fetchMenu() {
       const container = document.getElementById('menu-container');
       
@@ -75,23 +91,16 @@
 
       if (error) {
         console.error('Supabase Xatosi:', error);
-        container.innerHTML = `
-          <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative col-span-full text-center">
-            <strong class="font-bold">Baza Bilan Xatolik!</strong>
-            <p class="text-xs mt-1">${error.message}</p>
-            <p class="text-[10px] mt-2 text-gray-600">Maslahat: Supabase'da 'menu' jadvalining RLS (Row Level Security) siyosatini tekshiring (Enable Read Access).</p>
-          </div>
-        `;
+        container.innerHTML = `<p class="text-red-500 font-bold text-center">Xatolik: ${error.message}</p>`;
         return;
       }
 
-      if (!data || data.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-center col-span-full py-8">Bazada hech qanday taom topilmadi.</p>';
-        return;
-      }
-
-      // Stop-list cheklovlarini tekshirish
-      menuData = data.filter(item => item.is_stop !== true && item.is_available !== false);
+      menuData = (data || [])
+        .filter(item => item.is_stop !== true && item.is_available !== false)
+        .map(item => ({
+          ...item,
+          cat_name: getItemCategory(item)
+        }));
       
       renderCategories();
       renderMenu();
@@ -99,8 +108,13 @@
 
     function renderCategories() {
       const catContainer = document.getElementById('categories-container');
-      const categories = [...new Set(menuData.map(item => item.category || item.category_name).filter(Boolean))];
       
+      // Aniq talab qilingan tartibda bo'limlar ro'yxati
+      const fixedCategories = ['HOTDOGLAR', 'LAVASHLAR', 'ICHIMLIKLAR', 'BOSHQALAR'];
+      
+      // Faqat bazada taomlari bor bo'limlarni saralab olish
+      const activeCategories = fixedCategories.filter(cat => menuData.some(item => item.cat_name === cat));
+
       let html = `
         <button onclick="filterCategory('all')" 
           class="${selectedCategory === 'all' ? 'bg-amber-600 text-white' : 'bg-gray-200 text-gray-700'} px-4 py-1.5 rounded-full text-sm font-semibold whitespace-nowrap transition-colors">
@@ -108,7 +122,7 @@
         </button>
       `;
 
-      categories.forEach(cat => {
+      activeCategories.forEach(cat => {
         const isActive = selectedCategory === cat;
         html += `
           <button onclick="filterCategory('${cat}')" 
@@ -130,34 +144,61 @@
     function renderMenu() {
       const container = document.getElementById('menu-container');
       
-      const filteredMenu = selectedCategory === 'all' 
+      let filteredMenu = selectedCategory === 'all' 
         ? menuData 
-        : menuData.filter(item => (item.category || item.category_name) === selectedCategory);
+        : menuData.filter(item => item.cat_name === selectedCategory);
 
       if (!filteredMenu || filteredMenu.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-center col-span-full py-8">Ushbu bo\'limda taomlar yo\'q.</p>';
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">Ushbu bo\'limda taomlar yo\'q.</p>';
         return;
       }
 
-      container.innerHTML = filteredMenu.map(item => {
-        const currentQty = cart[item.id] || 0;
-        return `
-          <div class="bg-white p-3 rounded-xl shadow-sm flex gap-4 items-center">
-            <img src="${item.image_url || item.image || 'https://via.placeholder.com/100'}" class="w-20 h-20 object-cover rounded-lg bg-gray-100">
-            <div class="flex-1">
-              <h3 class="font-bold text-base text-gray-800">${item.title || item.name}</h3>
-              <p class="text-amber-600 font-bold mt-1">${Number(item.price || 0).toLocaleString()} SUM</p>
-            </div>
-            <div class="flex items-center gap-2">
-              ${currentQty > 0 ? `
-                <button onclick="changeQuantity(${item.id}, -1)" class="w-8 h-8 bg-gray-200 active:bg-gray-300 rounded-full font-bold text-lg flex items-center justify-center">-</button>
-                <span class="font-bold min-w-[16px] text-center">${currentQty}</span>
-              ` : ''}
-              <button onclick="changeQuantity(${item.id}, 1)" class="w-8 h-8 bg-amber-600 active:bg-amber-700 text-white rounded-full font-bold text-lg flex items-center justify-center">+</button>
-            </div>
+      if (selectedCategory === 'all') {
+        const fixedCategories = ['HOTDOGLAR', 'LAVASHLAR', 'ICHIMLIKLAR', 'BOSHQALAR'];
+        let html = '';
+
+        fixedCategories.forEach(catName => {
+          const catItems = filteredMenu.filter(item => item.cat_name === catName);
+          if (catItems.length > 0) {
+            html += `
+              <div>
+                <h2 class="text-lg font-extrabold text-amber-800 mb-3 border-b-2 border-amber-500 pb-1 tracking-wide">${catName}</h2>
+                <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+                  ${catItems.map(item => renderItemCard(item)).join('')}
+                </div>
+              </div>
+            `;
+          }
+        });
+
+        container.innerHTML = html;
+      } else {
+        container.innerHTML = `
+          <div class="grid gap-4 grid-cols-1 sm:grid-cols-2">
+            ${filteredMenu.map(item => renderItemCard(item)).join('')}
           </div>
         `;
-      }).join('');
+      }
+    }
+
+    function renderItemCard(item) {
+      const currentQty = cart[item.id] || 0;
+      return `
+        <div class="bg-white p-3 rounded-xl shadow-sm flex gap-4 items-center">
+          <img src="${item.image_url || item.image || 'https://via.placeholder.com/100'}" class="w-20 h-20 object-cover rounded-lg bg-gray-100">
+          <div class="flex-1">
+            <h3 class="font-bold text-base text-gray-800">${item.title || item.name}</h3>
+            <p class="text-amber-600 font-bold mt-1">${Number(item.price || 0).toLocaleString()} SUM</p>
+          </div>
+          <div class="flex items-center gap-2">
+            ${currentQty > 0 ? `
+              <button onclick="changeQuantity(${item.id}, -1)" class="w-8 h-8 bg-gray-200 active:bg-gray-300 rounded-full font-bold text-lg flex items-center justify-center">-</button>
+              <span class="font-bold min-w-[16px] text-center">${currentQty}</span>
+            ` : ''}
+            <button onclick="changeQuantity(${item.id}, 1)" class="w-8 h-8 bg-amber-600 active:bg-amber-700 text-white rounded-full font-bold text-lg flex items-center justify-center">+</button>
+          </div>
+        </div>
+      `;
     }
 
     function changeQuantity(id, delta) {
