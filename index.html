@@ -49,6 +49,17 @@
     </button>
   </div>
 
+  <!-- Rasm to'liq ko'rinishi uchun Modal (Modal oynasi) -->
+  <div id="image-modal" onclick="closeImageModal()" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden z-50 flex items-center justify-center p-4">
+    <div class="relative max-w-lg w-full flex flex-col items-center">
+      <!-- Yopish tugmasi -->
+      <button onclick="closeImageModal()" class="absolute -top-10 right-0 text-white text-3xl font-bold bg-black/40 w-10 h-10 rounded-full flex items-center justify-center">&times;</button>
+      <!-- To'liq rasm -->
+      <img id="modal-img" src="" class="max-h-[80vh] w-auto max-w-full rounded-2xl shadow-2xl object-contain border-2 border-amber-500" onclick="event.stopPropagation()">
+      <h3 id="modal-title" class="text-white text-lg font-bold mt-3 text-center"></h3>
+    </div>
+  </div>
+
   <script>
     const SUPABASE_URL = 'https://wrrsvrgdinfmnuwewtoa.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndycnN2cmdkaW5mbW51d2V3dG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NzM0ODIsImV4cCI6MjEwMjU0OTQ4Mn0.YRHratsKVG42IY6YKokDycRy23oU8N3b7jO-o3tpQF4';
@@ -64,7 +75,6 @@
     let menuData = [];
     let selectedCategory = 'all';
 
-    // Aniq belgilangan 4 ta bo'lim bo'yicha ajratish funksiyasi
     function getItemCategory(item) {
       const name = (item.title || item.name || '').toLowerCase();
       const rawCat = (item.category || item.category_name || '').toLowerCase();
@@ -108,11 +118,7 @@
 
     function renderCategories() {
       const catContainer = document.getElementById('categories-container');
-      
-      // Aniq talab qilingan tartibda bo'limlar ro'yxati
       const fixedCategories = ['HOTDOGLAR', 'LAVASHLAR', 'ICHIMLIKLAR', 'BOSHQALAR'];
-      
-      // Faqat bazada taomlari bor bo'limlarni saralab olish
       const activeCategories = fixedCategories.filter(cat => menuData.some(item => item.cat_name === cat));
 
       let html = `
@@ -183,11 +189,18 @@
 
     function renderItemCard(item) {
       const currentQty = cart[item.id] || 0;
+      const imgSrc = item.image_url || item.image || 'https://via.placeholder.com/100';
+      const itemTitle = item.title || item.name;
+
       return `
         <div class="bg-white p-3 rounded-xl shadow-sm flex gap-4 items-center">
-          <img src="${item.image_url || item.image || 'https://via.placeholder.com/100'}" class="w-20 h-20 object-cover rounded-lg bg-gray-100">
+          <!-- Rasmni bossa kattalashtirib ko'rsatish -->
+          <img src="${imgSrc}" 
+               onclick="openImageModal('${imgSrc}', '${itemTitle}')" 
+               class="w-20 h-20 object-cover rounded-lg bg-gray-100 cursor-pointer hover:opacity-80 transition-opacity active:scale-95">
+          
           <div class="flex-1">
-            <h3 class="font-bold text-base text-gray-800">${item.title || item.name}</h3>
+            <h3 class="font-bold text-base text-gray-800">${itemTitle}</h3>
             <p class="text-amber-600 font-bold mt-1">${Number(item.price || 0).toLocaleString()} SUM</p>
           </div>
           <div class="flex items-center gap-2">
@@ -199,6 +212,18 @@
           </div>
         </div>
       `;
+    }
+
+    // Rasmni modalda ochish funksiyasi
+    function openImageModal(imgSrc, title) {
+      document.getElementById('modal-img').src = imgSrc;
+      document.getElementById('modal-title').innerText = title;
+      document.getElementById('image-modal').classList.remove('hidden');
+    }
+
+    // Modalni yopish funksiyasi
+    function closeImageModal() {
+      document.getElementById('image-modal').classList.add('hidden');
     }
 
     function changeQuantity(id, delta) {
