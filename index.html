@@ -1,1 +1,164 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kafe Menyu</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-100 text-gray-800 pb-24">
 
+  <!-- Header -->
+  <header class="bg-amber-600 text-white p-4 sticky top-0 shadow-md flex justify-between items-center z-10">
+    <div>
+      <h1 class="text-xl font-bold">Kafe Menyusi</h1>
+      <p id="table-display" class="text-xs text-amber-100">Stol aniqlanmadi</p>
+    </div>
+    <div id="cart-count" class="bg-amber-800 px-3 py-1 rounded-full text-sm font-bold">
+      Savat: 0
+    </div>
+  </header>
+
+  <!-- Menyu Ro'yxati -->
+  <main id="menu-container" class="p-4 grid gap-4 grid-cols-1 sm:grid-cols-2">
+    <p class="text-gray-500">Menyu yuklanmoqda...</p>
+  </main>
+
+  <!-- Buyurtma berish tugmasi (Pastda qotirilgan) -->
+  <div class="fixed bottom-0 left-0 right-0 bg-white p-4 shadow-lg border-t flex justify-between items-center z-10">
+    <div>
+      <span class="text-xs text-gray-500">Jami:</span>
+      <p id="total-price" class="text-lg font-bold text-amber-600">0 SUM</p>
+    </div>
+    <button onclick="submitOrder()" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2 px-6 rounded-lg shadow">
+      Buyurtma berish
+    </button>
+  </div>
+
+  <script>
+    // 1. Supabase-ni sozlash
+    const SUPABASE_URL = 'BU_YERGA_PROJECT_URL_QOYING';
+    const SUPABASE_KEY = 'BU_YERGA_ANON_KEY_QOYING';
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // 2. URL-dan stol raqamini aniqlash (?table=1)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tableNumber = urlParams.get('table') || 1; // Standart: 1-stol
+    document.getElementById('table-display').innerText = `${tableNumber}-sonli stol`;
+
+    let cart = {};
+    let menuData = [];
+
+    // 3. Admin panel kiritgan menyuni bazadan yuklab olish
+    async function fetchMenu() {
+      const { data, error } = await supabase
+        .from('menu')
+        .select('*')
+        .eq('is_available', true);
+
+      if (error) {
+        console.error('Menyuni yuklashda xatolik:', error);
+        return;
+      }
+
+      menuData = data;
+      renderMenu();
+    }
+
+    function renderMenu() {
+      const container = document.getElementById('menu-container');
+      if (menuData.length === 0) {
+        container.innerHTML = '<p class="text-gray-500">Hozircha menyuda taomlar yo\'q.</p>';
+        return;
+      }
+
+      container.innerHTML = menuData.map(item => `
+        <div class="bg-white p-3 rounded-xl shadow-sm flex gap-4 items-center">
+          <img src="${item.image_url || 'https://via.placeholder.com/100'}" class="w-20 h-20 object-cover rounded-lg">
+          <div class="flex-1">
+            <h3 class="font-bold text-lg">${item.title}</h3>
+            <p class="text-xs text-gray-500">${item.description || ''}</p>
+            <p class="text-amber-600 font-bold mt-1">${Number(item.price).toLocaleString()} SUM</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="changeQuantity(${item.id}, -1)" class="w-8 h-8 bg-gray-200 rounded-full font-bold text-lg">-</button>
+            <span id="qty-${item.id}" class="font-bold">0</span>
+            <button onclick="changeQuantity(${item.id}, 1)" class="w-8 h-8 bg-amber-600 text-white rounded-full font-bold text-lg">+</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Savatni boshqarish
+    function changeQuantity(id, delta) {
+      if (!cart[id]) cart[id] = 0;
+      cart[id] += delta;
+      if (cart[id] <= 0) delete cart[id];
+
+      document.getElementById(`qty-${id}`).innerText = cart[id] || 0;
+      updateCartSummary();
+    }
+
+    function updateCartSummary() {
+      let total = 0;
+      let count = 0;
+
+      for (let id in cart) {
+        const item = menuData.find(m => m.id == id);
+        if (item) {
+          total += item.price * cart[id];
+          count += cart[id];
+        }
+      }
+
+      document.getElementById('total-price').innerText = `${total.toLocaleString()} SUM`;
+      document.getElementById('cart-count').innerText = `Savat: ${count}`;
+    }
+
+    // 4. Buyurtmani Supabase bazasiga (Admin panelga) yuborish
+    async function submitOrder() {
+      const itemIds = Object.keys(cart);
+      if (itemIds.length === 0) {
+        alert("Iltimos, kamida bitta taom tanlang!");
+        return;
+      }
+
+      const orderItems = itemIds.map(id => {
+        const item = menuData.find(m => m.id == id);
+        return {
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          quantity: cart[id]
+        };
+      });
+
+      let totalPrice = orderItems.reduce((sum, i) => sum + (i.price * i.quantity), 0);
+
+      const { data, error } = await supabase
+        .from('orders')
+        .insert([
+          {
+            table_number: parseInt(tableNumber),
+            items: orderItems,
+            total_price: totalPrice,
+            status: 'yangi'
+          }
+        ]);
+
+      if (error) {
+        alert("Buyurtma yuborishda xatolik yuz berdi!");
+        console.error(error);
+      } else {
+        alert(`${tableNumber}-stol uchun buyurtmangiz qabul qilindi!`);
+        cart = {};
+        renderMenu();
+        updateCartSummary();
+      }
+    }
+
+    fetchMenu();
+  </script>
+</body>
+</html>
