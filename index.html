@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Kafe Menyu</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Supabase JS CDN (versiyasi barqaror) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.8/dist/umd/supabase.min.js"></script>
   <style>
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -50,12 +51,12 @@
   </div>
 
   <script>
-    // Supabase obyektini to'g'ri chaqirish
     const SUPABASE_URL = 'https://wrrsvrgdinfmnuwewtoa.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndycnN2cmdkaW5mbW51d2V3dG9hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY5NzM0ODIsImV4cCI6MjEwMjU0OTQ4Mn0.YRHratsKVG42IY6YKokDycRy23oU8N3b7jO-o3tpQF4';
     
-    // CDN ulanishidagi xatolik to'g'rilandi:
-    const supabase = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    // Supabase obyektini xavfsiz shakllantirish
+    const _supabase = window.supabase || window.supabaseClient;
+    const client = _supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const urlParams = new URLSearchParams(window.location.search);
     const tableNumber = urlParams.get('table') || '1';
@@ -66,23 +67,34 @@
     let selectedCategory = 'all';
 
     async function fetchMenu() {
-      try {
-        const { data, error } = await supabase
-          .from('menu')
-          .select('*');
+      const container = document.getElementById('menu-container');
+      
+      const { data, error } = await client
+        .from('menu')
+        .select('*');
 
-        if (error) throw error;
-
-        // Stop-list bo'lmagan taomlarni saralash
-        menuData = (data || []).filter(item => item.is_stop !== true && item.is_available !== false);
-        
-        renderCategories();
-        renderMenu();
-      } catch (err) {
-        console.error('Xatolik yuz berdi:', err);
-        document.getElementById('menu-container').innerHTML = 
-          `<p class="text-red-500 font-bold text-center col-span-full">Menyuni yuklab bo'lmadi: ${err.message || err}</p>`;
+      if (error) {
+        console.error('Supabase Xatosi:', error);
+        container.innerHTML = `
+          <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative col-span-full text-center">
+            <strong class="font-bold">Baza Bilan Xatolik!</strong>
+            <p class="text-xs mt-1">${error.message}</p>
+            <p class="text-[10px] mt-2 text-gray-600">Maslahat: Supabase'da 'menu' jadvalining RLS (Row Level Security) siyosatini tekshiring (Enable Read Access).</p>
+          </div>
+        `;
+        return;
       }
+
+      if (!data || data.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center col-span-full py-8">Bazada hech qanday taom topilmadi.</p>';
+        return;
+      }
+
+      // Stop-list cheklovlarini tekshirish
+      menuData = data.filter(item => item.is_stop !== true && item.is_available !== false);
+      
+      renderCategories();
+      renderMenu();
     }
 
     function renderCategories() {
@@ -123,7 +135,7 @@
         : menuData.filter(item => (item.category || item.category_name) === selectedCategory);
 
       if (!filteredMenu || filteredMenu.length === 0) {
-        container.innerHTML = '<p class="text-gray-500 text-center col-span-full py-8">Sotuvda taomlar mavjud emas.</p>';
+        container.innerHTML = '<p class="text-gray-500 text-center col-span-full py-8">Ushbu bo\'limda taomlar yo\'q.</p>';
         return;
       }
 
@@ -192,7 +204,7 @@
 
       let totalPrice = orderItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
-      const { data, error } = await supabase
+      const { data, error } = await client
         .from('orders')
         .insert([
           {
