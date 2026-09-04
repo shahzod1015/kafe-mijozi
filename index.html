@@ -255,25 +255,35 @@
 
       const orderItems = itemIds.map(id => {
         const item = menuData.find(m => m.id == id);
+        const nameStr = item.title || item.name || 'Taom';
+        const qtyNum = cart[id] || 1;
         return {
           id: item.id,
-          name: item.title || item.name,
-          price: item.price,
-          qty: cart[id]
+          name: nameStr,
+          title: nameStr,
+          price: item.price || 0,
+          quantity: qtyNum,
+          qty: qtyNum,
+          count: qtyNum
         };
       });
 
       let totalPrice = orderItems.reduce((sum, i) => sum + (i.price * i.qty), 0);
 
-      // Bazaga yuborish (ustun nomi table_number qilindi)
+      const parsedTableNum = parseInt(tableNumber) || 1;
+
+      // Supabase orders jadvaliga yuborish
       const { data, error } = await client
         .from('orders')
         .insert([
           {
-            table_number: parseInt(tableNumber) || 1,
+            table_number: `${parsedTableNum}-sonli stol`,
+            table: parsedTableNum,
+            stol: `${parsedTableNum}-sonli stol`,
             items: orderItems,
             total_price: totalPrice,
-            status: 'yangi',
+            total_amount: totalPrice,
+            status: 'TAYYORLANMOQDA',
             created_at: new Date().toISOString()
           }
         ]);
@@ -282,7 +292,7 @@
         console.error("Buyurtma yuborishdagi xatolik:", error);
         alert(`Buyurtma yuborishda xatolik!\n\nSababi: ${error.message || JSON.stringify(error)}`);
       } else {
-        alert(`${tableNumber}-stol uchun buyurtmangiz oshxonaga yuborildi!`);
+        alert(`${parsedTableNum}-stol uchun buyurtmangiz oshxonaga yuborildi!`);
         cart = {};
         renderMenu();
         updateCartSummary();
