@@ -272,17 +272,14 @@
 
       const parsedTableNum = parseInt(tableNumber) || 1;
 
-      // Supabase orders jadvaliga yuborish
+      // Supabase orders jadvaliga to'g'ridan-to'g'ri yuborish (keraksiz ustunlarsiz)
       const { data, error } = await client
         .from('orders')
         .insert([
           {
-            table_number: `${parsedTableNum}-sonli stol`,
-            table: parsedTableNum,
-            stol: `${parsedTableNum}-sonli stol`,
+            table_number: parsedTableNum,
             items: orderItems,
             total_price: totalPrice,
-            total_amount: totalPrice,
             status: 'TAYYORLANMOQDA',
             created_at: new Date().toISOString()
           }
